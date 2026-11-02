@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+# raw images, pipeline outputs and job logs never live in the repository
+data/
+outputs/
+logs/
+*.tif
+*.tiff
+*.parquet
+*.csv.gz

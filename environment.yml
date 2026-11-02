@@ -1,0 +1,36 @@
+# The environment the published runs used (cluster, GPU). Pins numpy 1.26 for big-fish; torch / torchvision
+# are the CUDA 12.1 wheels; opencv-python-headless is pinned because newer wheels need numpy 2.
+#
+#   conda env create -f environment.yml
+#   conda activate smfish
+#   pip install -e .                                   # from the repository root
+#   python -m smfish.cli check-env --download          # once, on a node with internet: Cellpose-SAM weights
+#   python -m smfish.cli check-env                     # on a GPU node: versions, CUDA, a small 3D test
+#
+# For the notebooks alone (laptop, no GPU): any Python 3.10 env, then  pip install -e ".[notebooks]"
+name: smfish
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy=1.26
+  - scipy=1.12
+  - pandas=2.2
+  - scikit-image=0.22
+  - tifffile=2023.2.28            # aicsimageio 4.14 needs tifffile < 2023.3.15
+  - pyarrow=15.0.2
+  - pyyaml=6
+  - matplotlib=3.8
+  - pytest=8
+  - jupyterlab
+  - ipykernel
+  - nbformat
+  - pip
+  - pip:
+      - big-fish==0.6.2
+      - aicsimageio==4.14.0
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      - torch==2.2.2
+      - torchvision==0.17.2
+      - opencv-python-headless==4.10.0.84
+      - cellpose==4.2.1.1          # Cellpose-SAM; weights cpsam_v2 (segmentation.cellpose_model)

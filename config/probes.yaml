@@ -1,0 +1,29 @@
+# Probe dictionary: every probe name that appears in the plate layout must be here.
+# Unknown probe names raise an error (no silent defaults).
+#
+#   gene       - target gene (probes with the same gene in one well are paired for colocalisation / TSS calls)
+#   role       - exon | intron | neg_control
+#   probe_set  - optional sub-set label (odds / evens)
+#   allele     - optional: which allele the probe can see (e.g. KI = knock-in only)
+#   absent_in  - optional: conditions (cell lines) that lack the target. In those wells the probe is
+#                a negative control: every spot is a false positive (used for threshold calibration).
+#
+# Cell lines:
+#   POLR2A-Streaming = single-allele knock-in: streaming tag (TetO-MS2) inserted at POLR2A
+#   OsTIRF47G        = background (parental) line, no knock-in
+
+POLR2A odds exon:   {gene: POLR2A, role: exon, probe_set: odds}
+POLR2A evens exon:  {gene: POLR2A, role: exon, probe_set: evens}
+POLR2A intron:      {gene: POLR2A, role: intron}
+POLR2B odds exon:   {gene: POLR2B, role: exon, probe_set: odds}
+POLR2B evens exon:  {gene: POLR2B, role: exon, probe_set: evens}
+GAPDH exon:         {gene: GAPDH, role: exon}
+CTCF intron:        {gene: CTCF, role: intron}
+# TetO-MS2 streaming tag at POLR2A, knock-in allele only (one allele in Streaming).
+#   -> in OsTIR wells (W15) any TetO spot is a false positive (negative control for 633 introns)
+#   -> in Streaming, at most 1 TSS per nucleus (2 after replication): use as a threshold sanity check
+TetO MS2 intron:    {gene: POLR2A, role: intron, allele: KI, absent_in: [OsTIRF47G]}
+# The OsTIR background has no neo cassette -> NeoR spots in OsTIR wells are background (negative control).
+NeoR:               {gene: NeoR, role: exon, absent_in: [OsTIRF47G]}
+# Bacterial gene - not expressed in mammalian cells: negative control for false positives.
+mrcB:               {gene: mrcB, role: neg_control}

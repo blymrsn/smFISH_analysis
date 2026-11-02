@@ -1,0 +1,25 @@
+#!/bin/bash
+# One FOV per array element (step 1). Submit through pbs/1_process_fovs.sh, which sets the array range,
+# CONFIG, INDEX_FILE and MANIFEST. Resources: ~16 GB peak, ~10 min per FOV on one GPU.
+
+#PBS -N smfish_fov
+#PBS -l select=1:ncpus=4:ngpus=1:mem=24gb
+#PBS -l walltime=01:00:00
+#PBS -j oe
+
+# Activate the environment (edit these two lines if your cluster provides conda differently).
+source ~/.bashrc
+conda activate "${CONDA_ENV:-smfish}"
+cd "$PBS_O_WORKDIR"
+echo "host $(hostname)  env ${CONDA_ENV:-smfish}"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
+
+# Array element k processes the manifest index on line k+1 of INDEX_FILE (line 1 without an array).
+LINE=$(( ${PBS_ARRAY_INDEX:-0} + 1 ))
+INDEX=$(sed -n "${LINE}p" "$INDEX_FILE")
+if [ -z "$INDEX" ]; then
+  echo "No manifest index on line $LINE of $INDEX_FILE" >&2
+  exit 1
+fi
+echo "PBS_ARRAY_INDEX=${PBS_ARRAY_INDEX:-none} -> manifest index $INDEX"
+python -m smfish.cli run -c "$CONFIG" --index "$INDEX" --manifest "$MANIFEST" ${OVERWRITE:+--overwrite}

@@ -1,0 +1,181 @@
+# Plate 250806: 17 wells (see plate_layout.csv), HCT116 POLR2A-Streaming knock-in and OsTIRF47G parental cells,
+# imaged on a Nikon spinning disk, 6 channels, 55 z-planes. All physical parameters are in µm / nm, never
+# pixels: they are converted with the voxel size read from each OME-TIFF.
+# Relative paths are resolved against the repository root (the folder holding pyproject.toml).
+
+experiment: "250806"
+
+paths:
+  input_dir: data/250806/OME-TIFF          # one OME-TIFF per field of view, "Well<N>" in the file name
+  output_dir: outputs/250806
+  plate_layout: config/250806/plate_layout.csv
+  probes: config/probes.yaml
+  # Illumination reference (blimp IllumCorr.pkl, with *_mean_image / *_std_image .ome.tiff beside it).
+  # Not read on this plate: illumination.method is none and nuclei are segmented on linear DAPI.
+  illumination_correction: data/250806/IllumCorr.pkl
+
+file_glob: "*.ome.tiff"
+well_regex: "Well(\\d+)"
+
+# Channel index in the OME-TIFF -> name.
+channels:
+  0: XXX_1
+  1: DAPI
+  2: Atto633
+  3: ConA
+  4: Atto565
+  5: XXX_2
+nuclear_channel: DAPI
+cell_channel: ConA
+
+# Plate-layout column -> channel name. Which probe sits in which channel comes ONLY from the layout.
+layout_probe_columns:
+  ATTO565 probe: Atto565
+  ATTO633 probe: Atto633
+layout_well_column: Well
+layout_condition_column: Condition
+
+# Cell lines, in the order and with the labels the figures use.
+conditions:
+  POLR2A-Streaming: POLR2A-Streaming (knock-in)
+  OsTIRF47G: OsTIRF47G (parental)
+
+voxel_size_um:
+  expected: [0.3, 0.065, 0.065]   # z, y, x
+  rel_tolerance: 0.15             # abort the FOV if metadata deviates more than this
+
+illumination:
+  # none: raw - camera offset (linear). The FISH-channel illumination references here are almost pure camera
+  # offset, so an image flat-field would amplify some pixels ~70x; spot-intensity vignetting (~30% at the
+  # edges) is corrected instead by aggregation.spot_flatfield, fitted on single mRNAs.
+  # Other methods: flatfield, zscore, blimp (see smfish/io.py).
+  method: none
+  reference_log10: true           # the IllumCorr references are fitted on log10 intensities
+  # Camera offset (dark level) in raw counts. The darkest 0.1% of pixels are 79-93, so the true offset may be
+  # < 100; with method none and local spot backgrounds this only shifts DAPI / ConA sums slightly.
+  camera_offset: {DAPI: 100, ConA: 100, Atto565: 100, Atto633: 100}
+
+segmentation:
+  cell_method: cpsam            # Cellpose-SAM (Cellpose 4.2.1.1), see smfish/segment.py
+  gpu: true
+  cellpose_model: cpsam_v2
+  use_bfloat16: false           # fp32: bf16 is emulated on V100s / CPUs, and gives identical masks
+  cellpose_batch_size: 8
+  xy_downscale: 0.25            # 0.26 µm pitch -> anisotropy 1.15 (4.61 at native resolution)
+  # Diameters measured on the data; cellprob -2 for cells (72% of ConA signal inside cells vs 57% at 0).
+  nucleus_diameter_um: 15.5
+  cell_diameter_um: 22.1
+  cellprob_nuclei: 0.0
+  cellprob_cells: -2.0
+  min_nucleus_volume_um3: 100.0
+  min_cell_volume_um3: 200.0
+  # Watershed snap: cells to ConA ridges (boundary ridge enrichment 1.63 -> 1.99), nuclei to DAPI edges.
+  refine_with_watershed: true
+  cell_seed_shrink_um: 1.0
+  cell_background_shrink_um: 3.0
+  nucleus_seed_shrink_um: 0.7
+  nucleus_background_shrink_um: 2.0
+  ridge_sigmas_um: [0.15, 0.30]
+  smooth_sigma_um: 0.10
+  # HCT116 cells genuinely overlap in 3D, so a cell may not own a whole XY column.
+  column_consistent_cells: false
+  # z range: the DAPI cell layer, minus the fibronectin-coated substrate plane(s) at its bottom (ConA stains
+  # the coating, so that plane carries no cell contrast), extended 1 µm up so cells are not cut flat.
+  crop_cell_layer: true
+  cell_layer_min_area_frac: 0.02
+  cell_layer_top_margin_um: 1.0
+  drop_substrate_plane: true
+  substrate_min_area_frac: 0.5
+  substrate_max_planes: 2       # longer bottom runs = ConA over the whole field (no stain contrast): drop nothing
+  fill_dropped_planes: true     # dropped substrate planes take the lowest segmented plane's labels
+
+detection:
+  # big-fish spot radius (z, y, x) in nm -> LoG sigma and local-max distance. Transcription sites carry many
+  # nascent transcripts and are larger than single mRNAs, hence the larger intron kernel.
+  spot_radius_nm:
+    exon: [375, 175, 175]
+    intron: [600, 195, 195]
+    neg_control: [375, 175, 175]
+  # Spots are detected permissively and their LoG score is stored, so the final threshold is chosen AFTER
+  # the run, from the control wells (aggregation.thresholds; notebooks/1_calibration).
+  permissive_factor: 0.6
+  # Fixed storage floors per channel and role (LoG units), well below any threshold the controls give, so
+  # every FOV stores spots down to the same level. The larger intron kernel gives lower scores.
+  permissive_threshold:
+    Atto565: {exon: 2.5, neg_control: 2.5, intron: 1.0}
+    Atto633: {exon: 2.0, neg_control: 2.0, intron: 1.0}
+  elbow_points: 100
+  # Ignore maxima in the first / last N z-planes (truncated windows; a plane-0 artefact in Atto633).
+  exclude_z_edge_slices: 1
+  subpixel_fit: false
+
+quantification:
+  # Integration ellipsoid and local-background shell around each spot (z, y, x) nm.
+  window_radius_nm: [600, 250, 250]
+  background_inner_nm: [900, 400, 400]
+  background_outer_nm: [1500, 650, 650]
+  isolation_distance_um: 1.0    # spots with a neighbour closer than this are not used as references
+
+compartments:
+  perinuclear_shell_um: 1.0     # cytoplasmic spots within this distance of the nuclear envelope
+
+tss:
+  colocalisation_distance_nm: 400
+  # Active transcription site = nuclear intron spot passing the threshold. Nascent RNA = exon-channel signal
+  # measured AT the intron spot; set true to also require a detected exon spot within the distance above.
+  require_exon_colocalisation: false
+  # Chromatic offset (dz, dy, dx µm) added to a channel's coordinates before colocalisation. The odds / evens
+  # wells measure it (aggregated/calibration/channel_offsets.csv): zero on this plate.
+  channel_offsets_um: {}
+
+aggregation:
+  # Final LoG threshold: ONE value per probe and channel, the same in every well and FOV, so counts compare
+  # across wells and cell lines. Lookup order: "<probe>@<channel>" -> probe -> channel -> default. A value is
+  # a number (LoG units) or "probe_median" (median of the per-FOV automated thresholds of that probe).
+  #
+  # Calibrated on this plate's controls (notebooks/1_calibration): the lowest score at which the negative
+  # control gives <= 1 false spot per QC cell (exon probes: the channel's mrcB well, NeoR in parental W5/W9)
+  # or <= 0.1 per nucleus (TetO in parental W15), each field's rate taken and the median over fields, with
+  # clumps of non-specific staining removed. W1 has no ConA, so its cells are nucleus-sized: applied as
+  # written, with no volume correction. 565 introns have no control: median per-FOV automated threshold.
+  thresholds:
+    default: probe_median
+    "CTCF intron@Atto565": 1.46        # median per-FOV automated (no negative control)
+    "GAPDH exon@Atto565": 7.70         # mrcB W1, same channel and kernel
+    "POLR2A intron@Atto565": 3.07      # median per-FOV automated (no negative control)
+    "POLR2A odds exon@Atto565": 7.70   # mrcB W1
+    "POLR2B odds exon@Atto565": 7.70   # mrcB W1
+    "mrcB@Atto565": 7.70               # own negative control (W1)
+    "GAPDH exon@Atto633": 7.34         # mrcB W6, same channel and kernel
+    "NeoR@Atto633": 7.33               # own negative control (parental W5, W9)
+    "POLR2A evens exon@Atto633": 7.34  # mrcB W6
+    "POLR2B evens exon@Atto633": 7.34  # mrcB W6
+    "TetO MS2 intron@Atto633": 2.30    # own negative control (parental W15), <= 0.1 per nucleus
+    "mrcB@Atto633": 7.34               # own negative control (W6)
+  # False positives per QC cell allowed in the negative controls, per detection kernel. Intron calls are 1-2
+  # real sites per nucleus, so they need a far stricter target than mRNA counts.
+  max_false_positives_per_cell: {exon: 1.0, intron: 0.1}
+  # Each control field's false spots per cell, median over fields, so a few fields with non-specific staining
+  # cannot set the plate's threshold ("pooled" = all fields together).
+  calibration_statistic: median
+  # Clumps of non-specific staining (smfish/clumps.py): extended bright objects the LoG splits into many
+  # candidates (here: Atto633 aggregates on top of a few W6 cells). Candidates in a clump are neither counted
+  # nor used in calibration. A seed has a local background > background_factor x the typical background of
+  # candidates in its own well and channel; >= min_seeds linked seeds spanning >= min_extent_um form a clump.
+  clumps:
+    enabled: true
+    background_factor: 5.0
+    link_um: 1.2
+    min_seeds: 4
+    min_extent_um: 1.5
+    score_floor_factor: 0.75
+    grow_steps: 2
+  reference_compartment: cytoplasm   # exon single-mRNA reference from isolated cytoplasmic spots
+  min_reference_spots: 50
+  # Smooth gain map per channel fitted on single-mRNA spots (corners ~30% dimmer), divided out of spot
+  # intensities before references / RNA estimates.
+  spot_flatfield: true
+  spot_flatfield_min_spots: 200
+  exclude_border_cells: true
+  min_cell_volume_um3: 400      # QC: 0.4 pL
+  min_nucleus_volume_um3: 100

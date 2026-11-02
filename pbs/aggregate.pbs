@@ -1,0 +1,15 @@
+#!/bin/bash
+# Aggregation job (step 2). Submit through pbs/2_aggregate.sh, which sets CONFIG.
+
+#PBS -N smfish_aggregate
+#PBS -l select=1:ncpus=2:mem=64gb
+#PBS -l walltime=02:00:00
+#PBS -j oe
+
+# Activate the environment (edit these two lines if your cluster provides conda differently).
+source ~/.bashrc
+conda activate "${CONDA_ENV:-smfish}"
+cd "$PBS_O_WORKDIR"
+
+python -m smfish.cli check -c "$CONFIG" || echo "WARNING: not all FOVs are done - aggregating the completed ones"
+python -m smfish.cli aggregate -c "$CONFIG"

@@ -1,0 +1,13 @@
+probe,channel,kernel,proposed,source,fp_per_cell_at_proposed,in config,agrees
+CTCF intron,Atto565,intron,1.4646464646464643,median per-FOV auto (no negative control),,1.46,True
+GAPDH exon,Atto565,exon,7.701532718830717,"negative control mrcB (wells 1), same channel and kernel",1.0,7.7,True
+GAPDH exon,Atto633,exon,7.353553786665062,"negative control mrcB (wells 6), same channel and kernel",1.0,7.34,True
+NeoR,Atto633,exon,7.324846887543914,"own negative control (wells 5,9)",1.0534041623098536,7.33,True
+POLR2A evens exon,Atto633,exon,7.353553786665062,"negative control mrcB (wells 6), same channel and kernel",1.0,7.34,True
+POLR2A intron,Atto565,intron,3.0707070707070705,median per-FOV auto (no negative control),,3.07,True
+POLR2A odds exon,Atto565,exon,7.701532718830717,"negative control mrcB (wells 1), same channel and kernel",1.0,7.7,True
+POLR2B evens exon,Atto633,exon,7.353553786665062,"negative control mrcB (wells 6), same channel and kernel",1.0,7.34,True
+POLR2B odds exon,Atto565,exon,7.701532718830717,"negative control mrcB (wells 1), same channel and kernel",1.0,7.7,True
+TetO MS2 intron,Atto633,intron,2.299834521392917,own negative control (wells 15),0.09375,2.3,True
+mrcB,Atto565,exon,7.701532718830717,own negative control (wells 1),1.0,7.7,True
+mrcB,Atto633,exon,7.353553786665062,own negative control (wells 6),1.0,7.34,True

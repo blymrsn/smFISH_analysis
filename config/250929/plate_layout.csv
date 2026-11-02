@@ -1,0 +1,18 @@
+Well,ATTO565 probe,ATTO633 probe,Condition
+1,mrcB,GAPDH exon,POLR2A-Streaming
+2,POLR2A odds exon,POLR2A evens exon,POLR2A-Streaming
+3,POLR2A odds exon,POLR2A evens exon,OsTIRF47G
+4,POLR2A intron,NeoR,POLR2A-Streaming
+5,POLR2A intron,NeoR,OsTIRF47G
+6,GAPDH exon,mrcB,POLR2A-Streaming
+7,POLR2B odds exon,POLR2B evens exon,POLR2A-Streaming
+8,POLR2A odds exon,NeoR,POLR2A-Streaming
+9,POLR2A odds exon,NeoR,OsTIRF47G
+10,POLR2A intron,POLR2A evens exon,POLR2A-Streaming
+11,POLR2A intron,POLR2A evens exon,OsTIRF47G
+12,POLR2B odds exon,POLR2A evens exon,POLR2A-Streaming
+13,POLR2B odds exon,NeoR,POLR2A-Streaming
+14,POLR2A intron,TetO MS2 intron,POLR2A-Streaming
+15,POLR2A intron,TetO MS2 intron,OsTIRF47G
+16,POLR2A odds exon,TetO MS2 intron,POLR2A-Streaming
+17,CTCF intron,POLR2A evens exon,POLR2A-Streaming
