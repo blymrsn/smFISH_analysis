@@ -110,7 +110,8 @@ The notebook shows:
 - **the controls against real signal**, and the threshold each control gives;
 - **clumps of non-specific staining**, and how many spots they remove;
 - **detection efficiency**, from the odds / evens wells;
-- **robustness**: whether the main readouts move when every threshold is scaled from 0.6x to 1.6x.
+- **robustness**: whether the main readouts move when every threshold is scaled from 0.6x to 1.6x;
+- **position in the field**: readouts by distance from the field centre, where illumination is brightest.
 
 It ends by checking that the thresholds in the config are the ones this run's controls give. If they are not, it
 prints the block to paste into the config; re-run step 2 afterwards (no image processing, minutes).

@@ -24,8 +24,8 @@
 # of the per-field automated (elbow) thresholds.
 #
 # Sections: 1 the thresholds in use; 2 clumps of non-specific staining; 3 control against real signal;
-# 4 detection efficiency (odds / evens); 5 do the conclusions hinge on the threshold?; 6 single-mRNA references;
-# 7 (optional, needs one raw image) one field from raw image to counted spots.
+# 4 detection efficiency (odds / evens); 5 do the conclusions hinge on the threshold?; 6 position in the field;
+# 7 single-mRNA references; 8 (optional, needs one raw image) one field from raw image to counted spots.
 
 # %%
 import os
@@ -216,7 +216,53 @@ with S.use("publication"):
     plt.show()
 
 # %% [markdown]
-# ## 6. Single-mRNA references and the spot flat-field
+# ## 6. Position in the field
+# Illumination falls off towards the edges of each field of view: single mRNAs near the edges are markedly dimmer than
+# in the centre (the measured fall-off is in section 7), and so is the background that false spots come from. One threshold for the whole
+# field is therefore more permissive in the centre and stricter at the edges: the rule's <= 1 false spot per cell
+# holds on average over the field, not in every part of it. Readouts below by the position of the cell's centre
+# (distance from the field centre as a fraction of the half-width: centre < 0.4, middle < 0.7, outer < 1, corner).
+# Concentrations near the edges are underestimated, but both cell lines are imaged with the same field geometry, so
+# the comparison between them does not depend on position. A position-dependent threshold was tested and not
+# adopted: it flattens these profiles but leaves the plate-wide readouts within a few percent.
+
+# %%
+voxel_xy = plate.cfg["voxel_size_um"]["expected"][1]
+xy = pd.read_parquet(plate.agg / "spots.parquet", filters=[("well", "==", 1)], columns=["y_px", "x_px"])
+half = (max(xy["y_px"].max(), xy["x_px"].max()) + 1) / 2 * voxel_xy          # field half-width in µm
+r = np.hypot(qc["centroid_y_um"] - half, qc["centroid_x_um"] - half) / half
+RINGS = ["centre", "middle", "outer", "corner"]
+by_ring = qc.assign(ring=pd.cut(r, [0, 0.4, 0.7, 1.0, 1.5], labels=RINGS))[["fov_id", "cell_id", "well", "ring",
+                                                                              "cell_volume_um3"]]
+POSITION = {"mrcB, Atto565 (W1): false spots per cell": ("mrcB", "Atto565", [1], "cell"),
+            "mrcB, Atto633 (W6): false spots per cell": ("mrcB", "Atto633", [6], "cell"),
+            "NeoR, parental (W5, W9): false spots per cell": ("NeoR", "Atto633", [5, 9], "cell"),
+            "TetO, parental (W15): false sites per nucleus": ("TetO MS2 intron", "Atto633", [15], "nucleus"),
+            "POLR2A per pL, knock-in (W2, W8, W16)": ("POLR2A odds exon", "Atto565", [2, 8, 16], "per pL"),
+            "POLR2A per pL, parental (W3, W9)": ("POLR2A odds exon", "Atto565", [3, 9], "per pL")}
+rows = []
+for label, (probe, channel, wells, unit) in POSITION.items():
+    d = long[(long["probe"] == probe) & (long["channel"] == channel) & long["well"].isin(wells)]
+    if unit == "nucleus":
+        d = d[d["compartment"] == "nucleus"]
+    n = d.groupby(["fov_id", "cell_id"])["n_spots"].sum()
+    c = by_ring[by_ring["well"].isin(wells)].set_index(["fov_id", "cell_id"])
+    c["n"] = n.reindex(c.index, fill_value=0)
+    if unit == "per pL":
+        per = c.groupby("ring", observed=True).apply(lambda t: t["n"].sum() / t["cell_volume_um3"].sum() * 1000,
+                                                     include_groups=False)
+        total = c["n"].sum() / c["cell_volume_um3"].sum() * 1000
+    else:
+        per, total = c.groupby("ring", observed=True)["n"].mean(), c["n"].mean()
+    rows.append({"readout": label, **per.to_dict(), "whole field": total})
+position = pd.DataFrame(rows).set_index("readout")
+position.loc["POLR2A per pL, knock-in / parental"] = (position.iloc[-2] / position.iloc[-1])
+position.loc["QC cells (all wells)"] = by_ring.groupby("ring", observed=True).size().reindex(RINGS).tolist() + [len(by_ring)]
+position.to_csv(plate.results / "position_in_field.csv")
+display(position.round(2))
+
+# %% [markdown]
+# ## 7. Single-mRNA references and the spot flat-field
 # Each spot's intensity (local background removed) is also expressed in transcript equivalents: divided by the
 # typical intensity of an isolated cytoplasmic spot of the same probe and well (`ref_mode`, the mode of the
 # distribution). Before that, a smooth gain map fitted on single mRNAs removes the dimming towards the field edges.
@@ -228,7 +274,7 @@ flat = pd.read_json(cal / "spot_flatfield.json").T[["edge_over_centre", "corner_
 display(flat.astype(float).round(2))
 
 # %% [markdown]
-# ## 7. One field from raw image to counted spots (optional)
+# ## 8. One field from raw image to counted spots (optional)
 # Needs one raw image of a readout well in `data/<plate>/OME-TIFF/` and the per-field `qc.json` files of step 1
 # (`outputs/<plate>/fov/`). Run with `SMFISH_IMAGES=1`. A: raw smFISH (maximum projection); B: LoG filtered;
 # C: every stored candidate (grey) and those at or above the threshold (orange); D: one spot with the
