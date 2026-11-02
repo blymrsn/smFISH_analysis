@@ -58,7 +58,9 @@ class Illumination:
     ``pixel_z_score`` works in log10 space; set ``illumination.reference_log10: true`` for
     references made that way (250806: mean image ~2 = log10(~100 counts)).
 
-    Methods (``illumination.method`` in the config):
+    Methods (``illumination.method`` in the config: one for every channel, or one per channel as a mapping with
+an optional ``default``, e.g. ``{DAPI: flatfield, ConA: flatfield, default: none}`` to flat-field the stains
+used for segmentation and leave the FISH channels linear and uncorrected):
 
     - ``flatfield``: ``(x - offset) / F`` with ``F = (M - offset) / mean(M - offset)``, where
       ``M`` is the mean image in linear units (``10**mean`` for log10 references).
@@ -72,6 +74,8 @@ class Illumination:
     Output is always float32 and offset-subtracted.
     """
 
+    METHODS = ("none", "flatfield", "zscore", "blimp")
+
     def __init__(self, cfg: dict):
         ic = cfg["illumination"]
         self.method = ic["method"]
@@ -79,22 +83,34 @@ class Illumination:
         self.cfg = cfg
         self.log10 = bool(ic.get("reference_log10", False))
         self.mean = self.std = None
-        if self.method in ("flatfield", "zscore", "blimp"):
-            self.mean, self.std = _load_reference_images(cfg["paths"]["illumination_correction"], self.method)
-        elif self.method != "none":
-            raise ValueError(f"Unknown illumination method {self.method!r}")
+        used = set(self.method.values()) if isinstance(self.method, dict) else {self.method}
+        unknown = used - set(self.METHODS)
+        if unknown:
+            raise ValueError(f"Unknown illumination method(s) {sorted(unknown)}")
+        needs = used & {"flatfield", "zscore", "blimp"}
+        if needs:
+            if len(needs) > 1:
+                raise ValueError(f"One reference-based method per run, got {sorted(needs)}")
+            self.mean, self.std = _load_reference_images(cfg["paths"]["illumination_correction"], needs.pop())
+
+    def method_for(self, name: str) -> str:
+        """The correction applied to channel ``name``."""
+        if isinstance(self.method, dict):
+            return self.method.get(name, self.method.get("default", "none"))
+        return self.method
 
     def correct(self, name: str, vol: np.ndarray) -> np.ndarray:
         if name not in self.offset:
             raise KeyError(f"No camera_offset configured for channel {name!r}")
         off = np.float32(self.offset[name])
-        if self.method == "none":
+        method = self.method_for(name)
+        if method == "none":
             return vol.astype(np.float32) - off
         c = channel_index(self.cfg, name)
         mean = self.mean[c].astype(np.float32)
         if mean.shape != vol.shape[-2:]:
             raise ValueError(f"Illumination image {mean.shape} does not match image {vol.shape[-2:]}")
-        if self.method == "flatfield":
+        if method == "flatfield":
             flat = (np.power(np.float32(10), mean) if self.log10 else mean) - off
             if np.any(flat <= 0):
                 raise ValueError(f"Flat-field for {name} has non-positive pixels; check camera_offset / reference_log10")

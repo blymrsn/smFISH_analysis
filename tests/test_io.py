@@ -78,6 +78,17 @@ def test_flatfield_removes_vignette(illum_cfg):
     assert out.std() / out.mean() < 1e-3  # flat after correction
 
 
+def test_per_channel_method_flatfields_stains_only(illum_cfg):
+    cfg, _, _, vignette = illum_cfg
+    cfg["illumination"]["method"] = {"DAPI": "flatfield", "ConA": "flatfield", "default": "none"}
+    cfg["illumination"]["reference_log10"] = False
+    ill = Illumination(cfg)
+    raw = (100 + 500.0 * vignette)[None].astype(np.float32)
+    assert ill.method_for("DAPI") == "flatfield" and ill.method_for("Atto565") == "none"
+    assert ill.correct("DAPI", raw).std() / ill.correct("DAPI", raw).mean() < 1e-3   # flat
+    assert np.allclose(ill.correct("Atto565", raw), raw - 100)                       # FISH: offset only
+
+
 def test_labels_round_trip_new_and_legacy_layout(tmp_path):
     cells = np.zeros((5, 20, 20), np.int32)
     cells[1:4, 2:10, 2:10] = 3
